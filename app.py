@@ -25,7 +25,7 @@ def ask_gemini(question, history):
         contents.append(types.Content(role=role, parts=[types.Part(text=turn["content"])]))
     contents.append(types.Content(role="user", parts=[types.Part(text=question)]))
     response = client.models.generate_content(
-        model="gemini-2.0-flash",
+       model="gemini-1.5-flash",
         config=types.GenerateContentConfig(system_instruction=SYSTEM),
         contents=contents,
     )
