@@ -160,17 +160,11 @@ for turn in st.session_state.history:
         st.markdown(f'<div class="msg-ai"><div class="msg-label">Support Brain</div>{turn["content"].replace(chr(10), "<br>")}{sources_html}</div>', unsafe_allow_html=True)
 
 # ── Input ──────────────────────────────────────────────────────────────────────
-with st.form("chat_form", clear_on_submit=True):
-    question = st.text_input(
-        "Your question",
-        placeholder="Ask anything — runbooks, escalation steps, onboarding...",
-        label_visibility="collapsed",
-        value=st.session_state.pop("pending_question", ""),
-    )
-    submitted = st.form_submit_button("Ask →", use_container_width=True)
-
+question = st.chat_input("Ask anything — runbooks, escalation steps, onboarding...")
+if "pending_question" in st.session_state:
+    question = st.session_state.pop("pending_question")
 # ── Handle submission ──────────────────────────────────────────────────────────
-if submitted and question.strip():
+if question and question.strip():
     with st.spinner("Thinking..."):
         try:
             confluence_docs = search_confluence(question)
