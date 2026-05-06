@@ -1,5 +1,5 @@
 import streamlit as st
-import anthropic
+import google.generativeai as genai
 from atlassian import Confluence
 import os
 
@@ -125,7 +125,7 @@ hr { border: none; border-top: 1px solid #f0f0f0; margin: 1.5rem 0; }
 # ── Credentials (from Streamlit secrets) ───────────────────────────────────────
 # In local dev, create .streamlit/secrets.toml with these keys.
 # On Streamlit Cloud, add them in the app's Secrets settings.
-ANTHROPIC_API_KEY   = st.secrets.get("ANTHROPIC_API_KEY", "")
+GEMINI_API_KEY      = st.secrets.get("GEMINI_API_KEY", "")
 CONFLUENCE_URL      = st.secrets.get("CONFLUENCE_URL", "")       # e.g. https://yourorg.atlassian.net
 CONFLUENCE_USERNAME = st.secrets.get("CONFLUENCE_USERNAME", "")  # your Atlassian email
 CONFLUENCE_API_TOKEN= st.secrets.get("CONFLUENCE_API_TOKEN", "")
@@ -133,8 +133,12 @@ CONFLUENCE_SPACE    = st.secrets.get("CONFLUENCE_SPACE", "")     # e.g. PSE or ~
 
 # ── Clients ────────────────────────────────────────────────────────────────────
 @st.cache_resource
-def get_anthropic():
-    return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+def get_gemini():
+    genai.configure(api_key=GEMINI_API_KEY)
+    return genai.GenerativeModel(
+        model_name="gemini-1.5-flash",
+        system_instruction=SYSTEM,
+    )
 
 @st.cache_resource
 def get_confluence():
@@ -189,8 +193,8 @@ Guidelines:
   Use doc titles from the excerpts, or "Support Brain knowledge base" if no docs were provided.
 - Sound like a knowledgeable senior PSE, not a generic chatbot."""
 
-def ask_claude(question: str, confluence_docs: list[dict], history: list) -> str:
-    client = get_anthropic()
+def ask_gemini(question: str, confluence_docs: list[dict], history: list) -> str:
+    model = get_gemini()
 
     # Build context block from Confluence results
     context = ""
@@ -199,18 +203,15 @@ def ask_claude(question: str, confluence_docs: list[dict], history: list) -> str
         for doc in confluence_docs:
             context += f"\n--- {doc['title']} ---\n{doc['excerpt']}\n"
 
-    # Inject context into the user turn
-    augmented_question = question + context
+    # Convert history to Gemini format
+    gemini_history = []
+    for turn in history:
+        role = "user" if turn["role"] == "user" else "model"
+        gemini_history.append({"role": role, "parts": [turn["content"]]})
 
-    messages = history + [{"role": "user", "content": augmented_question}]
-
-    response = client.messages.create(
-        model="claude-opus-4-5",
-        max_tokens=1024,
-        system=SYSTEM,
-        messages=messages,
-    )
-    return response.content[0].text
+    chat = model.start_chat(history=gemini_history)
+    response = chat.send_message(question + context)
+    return response.text
 
 # ── Parse sources from Claude response ────────────────────────────────────────
 def parse_response(raw: str):
@@ -236,7 +237,7 @@ st.markdown("""
 <div class="sb-tagline">
   AI knowledge assistant for Datadog PSEs &nbsp;·&nbsp;
   <span class="sb-badge live">● Confluence</span>
-  <span class="sb-badge">Claude Opus</span>
+  <span class="sb-badge">Gemini 1.5 Flash</span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -301,7 +302,7 @@ if submitted and question.strip():
         ]
 
         # 3. Get answer from Claude
-        raw_answer = ask_claude(question, confluence_docs, claude_history)
+        raw_answer = ask_gemini(question, confluence_docs, claude_history)
         answer, sources = parse_response(raw_answer)
 
     # Save to session
