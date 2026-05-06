@@ -291,23 +291,19 @@ with st.form("chat_form", clear_on_submit=True):
 
 # ── Handle submission ──────────────────────────────────────────────────────────
 if submitted and question.strip():
-    with st.spinner("Searching Confluence and thinking..."):
-        # 1. Search Confluence for relevant docs
-        confluence_docs = search_confluence(question)
-
-        # 2. Build history for Claude (plain content only, no context injected)
-        claude_history = [
-            {"role": t["role"], "content": t["content"]}
-            for t in st.session_state.history
-        ]
-
-        # 3. Get answer from Claude
-        raw_answer = ask_gemini(question, confluence_docs, claude_history)
-        answer, sources = parse_response(raw_answer)
-
-    # Save to session
-    st.session_state.history.append({"role": "user",      "content": question})
-    st.session_state.history.append({"role": "assistant", "content": answer, "sources": sources, "confluence": confluence_docs})
+    with st.spinner("Thinking..."):
+        try:
+            confluence_docs = search_confluence(question)
+            history_for_gemini = [
+                {"role": t["role"], "content": t["content"]}
+                for t in st.session_state.history
+            ]
+            raw_answer = ask_gemini(question, confluence_docs, history_for_gemini)
+            answer, sources = parse_response(raw_answer)
+            st.session_state.history.append({"role": "user", "content": question})
+            st.session_state.history.append({"role": "assistant", "content": answer, "sources": sources, "confluence": confluence_docs})
+        except Exception as e:
+            st.error(f"Something went wrong: {str(e)}")
     st.rerun()
 
 # ── Footer ─────────────────────────────────────────────────────────────────────
